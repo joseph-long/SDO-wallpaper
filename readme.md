@@ -1,0 +1,1 @@
+Scripts to update osx wallpaper to the latest [Solar Dynamics Observatory](https://sdo.gsfc.nasa.gov/) image.
