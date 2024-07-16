@@ -1,3 +1,5 @@
+import os
+import time
 import sys
 import random
 import AppKit
@@ -6,12 +8,16 @@ import requests
 from pathlib import Path
 from PIL import Image
 import objc
+import logging
+
+log = logging.getLogger(__name__)
 
 BASE_URL = "https://sdo.gsfc.nasa.gov"
 
 DOWNLOADS_PATH = Path.home() / "Downloads" / "current-sdo-images"
 
-def set_wallpaper(image_path : Path, screen: AppKit.NSScreen):
+
+def set_wallpaper(image_path: Path, screen: AppKit.NSScreen):
     ws = AppKit.NSWorkspace.sharedWorkspace()
     url = AppKit.NSURL.fileURLWithPath_(image_path.as_posix())
     options = {}
@@ -28,8 +34,9 @@ def resize_and_center_image(
     output_path: Path,
     final_width: int,
     final_height: int,
-    background_color: tuple[int, int, int]
+    background_color: tuple[int, int, int],
 ):
+    log.debug(f"Load {image_path}")
     # Load the original image
     original_image = Image.open(image_path)
 
@@ -49,14 +56,16 @@ def resize_and_center_image(
     new_image.paste(original_image, (padding_left, padding_top))
 
     # Save the result
+    log.debug(f"Save padded image to {output_path}")
     new_image.save(output_path)
     return output_path
 
 
-def download(url : str, dest : Path):
+def download(url: str, dest: Path):
     """
     download image and wait for download to finish
     """
+    log.debug(f"Retrieving {url}")
     response = requests.get(url, stream=True)
     with open(dest, "wb") as file:
         for chunk in response.iter_content(chunk_size=128):
@@ -65,14 +74,45 @@ def download(url : str, dest : Path):
 
 
 def main():
-    bs = BeautifulSoup(requests.get(BASE_URL + "/data/").text, features="lxml")
+    if os.environ.get("DEBUG"):
+        logging.basicConfig(level="DEBUG")
+    else:
+        logging.basicConfig(level="ERROR")
+
     srcs = [
-        x.attrs["href"]
-        for x in bs.find_all("a", href=lambda x: x and "latest_4096" in x)
+        "/assets/img/latest/latest_4096_0193.jpg",
+        "/assets/img/latest/latest_4096_0193pfss.jpg",
+        "/assets/img/latest/latest_4096_0304.jpg",
+        "/assets/img/latest/latest_4096_0304pfss.jpg",
+        "/assets/img/latest/latest_4096_0171.jpg",
+        "/assets/img/latest/latest_4096_0171pfss.jpg",
+        "/assets/img/latest/latest_4096_0211.jpg",
+        "/assets/img/latest/latest_4096_0211pfss.jpg",
+        "/assets/img/latest/latest_4096_0131.jpg",
+        "/assets/img/latest/latest_4096_0131pfss.jpg",
+        "/assets/img/latest/latest_4096_0335.jpg",
+        "/assets/img/latest/latest_4096_0335pfss.jpg",
+        "/assets/img/latest/latest_4096_0094.jpg",
+        "/assets/img/latest/latest_4096_0094pfss.jpg",
+        "/assets/img/latest/latest_4096_1600.jpg",
+        "/assets/img/latest/latest_4096_1600pfss.jpg",
+        "/assets/img/latest/latest_4096_1700.jpg",
+        "/assets/img/latest/latest_4096_1700pfss.jpg",
+        "/assets/img/latest/latest_4096_211193171.jpg",
+        "/assets/img/latest/latest_4096_HMIB.jpg",
+        "/assets/img/latest/latest_4096_HMIBpfss.jpg",
+        "/assets/img/latest/latest_4096_HMIBC.jpg",
+        "/assets/img/latest/latest_4096_HMIIC.jpg",
+        "/assets/img/latest/latest_4096_HMIIF.jpg",
+        "/assets/img/latest/latest_4096_HMII.jpg",
+        "/assets/img/latest/latest_4096_HMID.jpg",
     ]
 
     dest = DOWNLOADS_PATH / "padded"
     dest.mkdir(exist_ok=True)
+    for existing in dest.glob("*.jpg"):
+        log.debug(f"Removing {existing}...")
+        existing.unlink()
 
     screens = AppKit.NSScreen.screens()
     srcs = random.sample(srcs, k=len(screens))
@@ -82,13 +122,13 @@ def main():
         dl_path = download(f"{BASE_URL}/{src}", DOWNLOADS_PATH / name)
         padded_img = resize_and_center_image(
             dl_path,
-            dest / name,
+            dest / f"{int(time.time())}_{name}",
             dimensions.width,
             dimensions.height,
             background_color=(0, 0, 0),
         )
         set_wallpaper(padded_img, screen)
-        print(f"{screen.localizedName()} set to {name}")
+        log.debug(f"{screen.localizedName()} set to {padded_img}")
     return 0
 
 
